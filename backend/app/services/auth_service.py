@@ -5,12 +5,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
+import bcrypt as _bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.config import settings
-
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Users stored in a lightweight SQLite table separate from the pipeline DB
 _AUTH_DB = settings.db_path.parent / "idss_auth.db"
@@ -38,11 +36,11 @@ def _get_conn() -> sqlite3.Connection:
 class AuthService:
     @staticmethod
     def hash_password(password: str) -> str:
-        return _pwd_context.hash(password)
+        return _bcrypt.hashpw(password.encode("utf-8"), _bcrypt.gensalt()).decode("utf-8")
 
     @staticmethod
     def verify_password(plain: str, hashed: str) -> bool:
-        return _pwd_context.verify(plain, hashed)
+        return _bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
     @staticmethod
     def create_access_token(payload: dict) -> str:

@@ -20,7 +20,7 @@ RUN pip install --no-cache-dir \
     "celery[redis]" \
     redis \
     "python-jose[cryptography]" \
-    "passlib[bcrypt]" \
+    bcrypt \
     python-multipart \
     "pydantic>=2.7.0" \
     "pydantic-settings>=2.2.1" \
