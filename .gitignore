@@ -1,0 +1,23 @@
+# Secrets — never commit these
+.env
+credentials.json
+token.json
+
+# Temp/intermediate files — regenerated as needed
+.tmp/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db

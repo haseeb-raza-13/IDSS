@@ -1,0 +1,33 @@
+# Core
+python-dotenv       # Load .env credentials
+requests            # HTTP calls
+
+# Google APIs (Sheets, Drive, Slides, Calendar)
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+google-api-python-client
+
+# Data handling
+pandas
+openpyxl            # Excel read/write via pandas
+
+# Document generation
+python-docx         # Write .docx Word files
+python-pptx         # Write .pptx PowerPoint files
+
+# Genomics
+biopython           # SeqIO, Entrez, PairwiseAligner, Phylo
+
+# ML / DL (Phase 4)
+numpy               # array math, linear regression slope
+scikit-learn        # RandomForest, MLPClassifier, cross-validation, metrics
+xgboost             # gradient boosting classifier
+joblib              # model serialization (.joblib files)
+
+# Forecasting (Phase 5 — optional, graceful fallback if absent)
+# prophet           # pip install prophet  (requires pystan + C++ compiler)
+
+# Anthropic / OpenAI (add as needed)
+anthropic
+# openai
