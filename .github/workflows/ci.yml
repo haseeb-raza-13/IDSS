@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install tool dependencies
+        run: pip install -r tools/requirements.txt
+
+      - name: Install backend dependencies
+        run: pip install fastapi "uvicorn[standard]" "celery[redis]" redis "python-jose[cryptography]" "passlib[bcrypt]" python-multipart "pydantic>=2.7.0" pydantic-settings slowapi httpx python-dotenv google-auth google-auth-oauthlib google-api-python-client pytest pytest-asyncio pytest-mock
+
+      - name: Run unit tests
+        working-directory: backend
+        run: pytest tests/ -m "not integration" -v
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run type check
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      - name: Run Vitest
+        working-directory: frontend
+        run: npm test
+
+  docker-build:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    needs: [backend-tests, frontend-tests]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker build -f backend/Dockerfile -t idss-backend:${{ github.sha }} .
+
+      - name: Build frontend image
+        run: docker build -f frontend/Dockerfile -t idss-frontend:${{ github.sha }} frontend/

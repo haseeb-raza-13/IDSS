@@ -1,0 +1,117 @@
+version: "3.9"
+
+services:
+  # ── Redis (broker + result backend + job state) ──────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI backend ───────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      - DB_PATH=/app/data/wat_genomics.db
+      - JOB_TMP_DIR=/app/job_tmp
+      - REDIS_URL=redis://redis:6379/0
+      - TOOLS_DIR=/app/tools
+      - NCBI_EMAIL=${NCBI_EMAIL}
+      - NCBI_API_KEY=${NCBI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GOOGLE_REDIRECT_URI=http://localhost:8000/api/integrations/google/callback
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - CORS_ORIGINS=["http://localhost:3000","http://localhost:5173"]
+    volumes:
+      - ./tools:/app/tools:ro
+      - ./workflows:/app/workflows:ro
+      - db_data:/app/data
+      - job_tmp:/app/job_tmp
+      - ./credentials.json:/app/credentials.json:ro
+      # token.json is written by the backend at runtime; mount the parent dir
+      - db_data:/app/token_dir
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Celery worker (slow queue: genomics pipeline, ML training) ────────────
+  celery_worker_slow:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=1 -Q slow
+    environment:
+      - DB_PATH=/app/data/wat_genomics.db
+      - JOB_TMP_DIR=/app/job_tmp
+      - REDIS_URL=redis://redis:6379/0
+      - TOOLS_DIR=/app/tools
+      - NCBI_EMAIL=${NCBI_EMAIL}
+      - NCBI_API_KEY=${NCBI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    volumes:
+      - ./tools:/app/tools:ro
+      - db_data:/app/data
+      - job_tmp:/app/job_tmp
+      - ./credentials.json:/app/credentials.json:ro
+      - db_data:/app/token_dir
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ── Celery worker (fast queue: alerts, forecasting, NCBI fetch) ───────────
+  celery_worker_fast:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2 -Q fast
+    environment:
+      - DB_PATH=/app/data/wat_genomics.db
+      - JOB_TMP_DIR=/app/job_tmp
+      - REDIS_URL=redis://redis:6379/0
+      - TOOLS_DIR=/app/tools
+      - NCBI_EMAIL=${NCBI_EMAIL}
+      - NCBI_API_KEY=${NCBI_API_KEY}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    volumes:
+      - ./tools:/app/tools:ro
+      - db_data:/app/data
+      - job_tmp:/app/job_tmp
+      - ./credentials.json:/app/credentials.json:ro
+      - db_data:/app/token_dir
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ── React frontend (Nginx) ────────────────────────────────────────────────
+  frontend:
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  redis_data:
+  db_data:
+  job_tmp:
